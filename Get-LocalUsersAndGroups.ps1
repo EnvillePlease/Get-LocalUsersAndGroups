@@ -45,6 +45,23 @@ class LocalUser {
     }
 }
 
+# Class to hold local group membership information
+class LocalGroup {
+    [string]$ReportedBy
+	[string]$GroupName
+	[string]$Member
+
+    # Default constructor for instancing.
+	LocalGroup() { $this.Init(@{}) }
+	# Shared initializer method
+    [void] Init([hashtable]$Properties) {
+        foreach ($Property in $Properties.Keys) {
+            $this.$Property = $Properties.$Property
+        }
+    }
+}
+
+# Get the local users for the computer specified
 $localuserstemp = Invoke-Command -ComputerName $servername {Get-LocalUser} -UseSSL
 $localuserslist = New-Object -TypeName "System.Collections.ArrayList"
 foreach ($localuser in $localuserstemp)
@@ -66,5 +83,5 @@ foreach ($localuser in $localuserstemp)
     $localuserslist.Add($templocaluser)
 
 }
-$filename = $outputpath + "\" + $servername + "_LocalUsers.csv"
-$localuserslist | Export-Csv -Path $filename -NoTypeInformation
+$userfilename = $outputpath + "\" + $servername + "_LocalUsers.csv"
+$localuserslist | Export-Csv -Path $userfilename -NoTypeInformation
