@@ -18,7 +18,7 @@
 #
 
 # Get the server to be connected to and the output path for the files
-param ([Parameter(Mandatory)]$serverlist, [Parameter(Mandatory)]$useroutputpath, [parameter(Mandatory)] $groupoutpupath)
+param ([Parameter(Mandatory)]$serverlist, [Parameter(Mandatory)]$useroutputpath, [parameter(Mandatory)] $groupoutputpath)
 
 # Class hold an individual user in the correct format and order.
 class LocalUser {
@@ -67,7 +67,7 @@ foreach ($servername in $servers)
 {
 
     # Get the local users for the computer specified in the current loop.
-    $localuserstemp = Invoke-Command -ComputerName $servername {Get-LocalUser} -UseSSL
+    $localuserstemp = Invoke-Command -ComputerName $servername {Get-LocalUser}
     $localuserslist = New-Object -TypeName "System.Collections.ArrayList"
     foreach ($localuser in $localuserstemp)
     {
@@ -91,17 +91,18 @@ foreach ($servername in $servers)
 
     }
     # Create the output file name and output as a csv file.
-    $userfilename = $outputpath + "\" + $servername + "_LocalUsers.csv"
+    $userfilename = $useroutputpath + "\" + $servername + "_LocalUsers.csv"
     $localuserslist | Export-Csv -Path $userfilename -NoTypeInformation
 
     # Now lets get the local groups, enumerate through and build a list of the group members
-    $localgrouptemp = Invoke-Command -ComputerName $servername {Get-LocalGroup} -UseSSL
+    $localgrouptemp = Invoke-Command -ComputerName $servername {Get-LocalGroup}
     $localgrouplist = New-Object -TypeName "System.Collections.ArrayList"
     foreach ($localgroup in $localgrouptemp)
     {
-        $groupname = $localgrouptemp.Name
+        $groupname = $localgroup.Name
+        $groupsid = $localgroup.SID
         # Get the members of the current group in the loop.
-        $localgroupmembertemp = Invoke-Command -ComputerName $servername {Get-LocalGroupMember -Name $groupname} -UseSSL
+        $localgroupmembertemp = Invoke-Command -ComputerName $servername -ScriptBlock {param($sid) Get-LocalGroupMember -SID $sid} -ArgumentList $groupsid
         foreach ($localgroupmember in $localgroupmembertemp)
         {
             # Create an instance of the group object to hold the current groupmember details.
@@ -111,11 +112,11 @@ foreach ($servername in $servers)
             $templocalgroupmember.Member = $localgroupmember.Name
 
             # Add the group member to the group collection.
-            $localgrouplist.BinarySearch($templocalgroupmember)
+            $localgrouplist.Add($templocalgroupmember)
         }
     }
 
     # Create the output file name and output to a csv file.
-    $groupfilename = $outputpath + "\" + $servername + "_LocalGroups.csv"
-    $localgrouplist | Export-Csv -Path $groupname -NoTypeInformation
+    $groupfilename = $groupoutputpath + "\" + $servername + "_LocalGroups.csv"
+    $localgrouplist | Export-Csv -Path $groupfilename -NoTypeInformation
 }
