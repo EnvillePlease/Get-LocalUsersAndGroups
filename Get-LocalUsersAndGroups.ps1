@@ -18,7 +18,7 @@
 #
 
 # Get the server to be connected to and the output path for the files
-param ([Parameter(Mandatory)]$servername, [Parameter(Mandatory)]$outputpath )
+param ([Parameter(Mandatory)]$serverlist, [Parameter(Mandatory)]$useroutputpath, [parameter(Mandatory)] $groupoutpupath)
 
 # Class hold an individual user in the correct format and order.
 class LocalUser {
@@ -61,27 +61,61 @@ class LocalGroup {
     }
 }
 
-# Get the local users for the computer specified
-$localuserstemp = Invoke-Command -ComputerName $servername {Get-LocalUser} -UseSSL
-$localuserslist = New-Object -TypeName "System.Collections.ArrayList"
-foreach ($localuser in $localuserstemp)
+# Enumerate over the list of servers.
+$servers = Get-Content -Path $serverlist
+foreach ($servername in $servers)
 {
-    $templocaluser = [LocalUser]::new()
-    $templocaluser.Computername = $servername
-    $templocaluser.AccountName = $localuser.Name
-    $templocaluser.AccountType = ""
-    $templocaluser.FullName = $localuser.FullName
-    $templocaluser.Comment = $localuser.Description
-    $templocaluser.AccountActive = $localuser.Enabled
-    $templocaluser.PasswordLastSet = $localuser.PasswordLastSet
-    $templocaluser.PasswordExpires = $localuser.PasswordExpires
-    $templocaluser.PasswordChangeable = $localuser.PasswordChangeableDate
-    $templocaluser.PasswordRequired = $localuser.PasswordRequired
-    $templocaluser.UserCanChangePassword = $localuser.UserMayChangePassword
-    $templocaluser.LastLogon = $localuser.LastLogon
 
-    $localuserslist.Add($templocaluser)
+    # Get the local users for the computer specified in the current loop.
+    $localuserstemp = Invoke-Command -ComputerName $servername {Get-LocalUser} -UseSSL
+    $localuserslist = New-Object -TypeName "System.Collections.ArrayList"
+    foreach ($localuser in $localuserstemp)
+    {
+        # Create an instance of the user object to hold the current user details.
+        $templocaluser = [LocalUser]::new()
+        $templocaluser.Computername = $servername
+        $templocaluser.AccountName = $localuser.Name
+        $templocaluser.AccountType = ""
+        $templocaluser.FullName = $localuser.FullName
+        $templocaluser.Comment = $localuser.Description
+        $templocaluser.AccountActive = $localuser.Enabled
+        $templocaluser.PasswordLastSet = $localuser.PasswordLastSet
+        $templocaluser.PasswordExpires = $localuser.PasswordExpires
+        $templocaluser.PasswordChangeable = $localuser.PasswordChangeableDate
+        $templocaluser.PasswordRequired = $localuser.PasswordRequired
+        $templocaluser.UserCanChangePassword = $localuser.UserMayChangePassword
+        $templocaluser.LastLogon = $localuser.LastLogon
 
+        # Add the user to the user collection
+        $localuserslist.Add($templocaluser)
+
+    }
+    # Create the output file name and output as a csv file.
+    $userfilename = $outputpath + "\" + $servername + "_LocalUsers.csv"
+    $localuserslist | Export-Csv -Path $userfilename -NoTypeInformation
+
+    # Now lets get the local groups, enumerate through and build a list of the group members
+    $localgrouptemp = Invoke-Command -ComputerName $servername {Get-LocalGroup} -UseSSL
+    $localgrouplist = New-Object -TypeName "System.Collections.ArrayList"
+    foreach ($localgroup in $localgrouptemp)
+    {
+        $groupname = $localgrouptemp.Name
+        # Get the members of the current group in the loop.
+        $localgroupmembertemp = Invoke-Command -ComputerName $servername {Get-LocalGroupMember -Name $groupname} -UseSSL
+        foreach ($localgroupmember in $localgroupmembertemp)
+        {
+            # Create an instance of the group object to hold the current groupmember details.
+            $templocalgroupmember = [LocalGroup]::new()
+            $templocalgroupmember.GroupName = $groupname
+            $templocalgroupmember.ReportedBy = $servername
+            $templocalgroupmember.Member = $localgroupmember.Name
+
+            # Add the group member to the group collection.
+            $localgrouplist.BinarySearch($templocalgroupmember)
+        }
+    }
+
+    # Create the output file name and output to a csv file.
+    $groupfilename = $outputpath + "\" + $servername + "_LocalGroups.csv"
+    $localgrouplist | Export-Csv -Path $groupname -NoTypeInformation
 }
-$userfilename = $outputpath + "\" + $servername + "_LocalUsers.csv"
-$localuserslist | Export-Csv -Path $userfilename -NoTypeInformation
